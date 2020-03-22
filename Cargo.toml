@@ -1,3 +1,9 @@
 [package]
-name = "hello-world"
+name = "beerbucket"
 version = "0.1.0"
+authors = ["Alexej Berger", "Björn Barschtipan"]
+edition = "2018"
+readme = "README.md"
+
+[dependencies]
+actix-web = "2.0.0"

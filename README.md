@@ -3,7 +3,7 @@ Online pub 4 friends
 
 # Project usage
 Open repo directory as workspace in Visual Studio Code. Default build & launch settings are provided. 
-Install the following vscode extensions:
+Make sure the following vscode extensions are installed:
 
+- `ms-vscode.cpptools`
 - `swellaby.rust-pack`
-- `ms-vscode.cpptools

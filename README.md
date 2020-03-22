@@ -6,4 +6,4 @@ Open repo directory as workspace in Visual Studio Code. Default build & launch s
 Install the following vscode extensions:
 
 - `swellaby.rust-pack`
-- `ms-vscode.cpptools
+- `ms-vscode.cpptools`

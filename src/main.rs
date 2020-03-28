@@ -100,7 +100,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
                     let v: Vec<&str> = m.splitn(2, ' ').collect();
                     match v[0] {
                         "/list" => {
-                            println!("List availabe rooms");
+                            println!("List availabe rooms:");
                             self.addr
                                 .send(server::ListRooms)
                                 .into_actor(self)
@@ -111,7 +111,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
                                                 ctx.text(room);
                                             }
                                         }
-                                        _ => println!("Something is wrong"),
+                                        _ => println!("Something is wrong!"),
                                     }
                                     fut::ready(())
                                 })
@@ -122,15 +122,22 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
                         }
                         "/join" => {
                             if v.len() == 2 {
-                                self.room = v[1].to_owned();
-                                self.addr.do_send(server::Join {
-                                    id: self.id,
-                                    name: self.room.clone(),
-                                });
-
-                                ctx.text("joined");
+                                match self.name.as_ref() {
+                                    Some(nickname) => {
+                                        self.room = v[1].to_owned();
+                                        self.addr.do_send(server::Join {
+                                            id: self.id,
+                                            name: self.room.clone(),
+                                        });
+        
+                                        ctx.text(format!("{} joined!", nickname));
+                                    },
+                                    None => {
+                                        println!("Joining channel not allowed without name!");
+                                    },
+                                }
                             } else {
-                                ctx.text("!!! room name is required");
+                                ctx.text("Room name is required!");
                             }
                         }
                         "/name" => {

@@ -6,12 +6,10 @@ use actix::prelude::*;
 use rand::{self, rngs::ThreadRng, Rng};
 use std::collections::{HashMap, HashSet};
 
-/// Chat server sends this messages to session
+/// Chat server sends this message to session
 #[derive(Message)]
 #[rtype(result = "()")]
 pub struct Message(pub String);
-
-/// Messages for chat server communications
 
 /// New chat session is created
 #[derive(Message)]

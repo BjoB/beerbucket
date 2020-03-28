@@ -194,6 +194,25 @@ impl WsChatSession {
     }
 }
 
+/// Entry point for our route
+async fn chat_route(
+    req: HttpRequest,
+    stream: web::Payload,
+    srv: web::Data<Addr<server::ChatServer>>,
+) -> Result<HttpResponse, Error> {
+    ws::start(
+        WsChatSession {
+            id: 0,
+            hb: Instant::now(),
+            room: "Main".to_owned(),
+            name: None,
+            addr: srv.get_ref().clone(),
+        },
+        &req,
+        stream,
+    )
+}
+
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init();

@@ -1,4 +1,4 @@
-//! `ChatServer` is an actor. It maintains a list of client sessions 
+//! `ChatServer` is an actor. It maintains a list of client sessions
 //! and manages available rooms. Peers send messages to other peers in same
 //! room through `ChatServer`.
 
@@ -11,7 +11,7 @@ use std::collections::{HashMap, HashSet};
 #[rtype(result = "()")]
 pub struct Message(pub String);
 
-/// Message for chat server communications
+/// Messages for chat server communications
 
 /// New chat session is created
 #[derive(Message)]
@@ -56,8 +56,7 @@ pub struct Join {
     pub name: String,
 }
 
-/// `ChatServer` manages chat rooms and responsible for coordinating chat
-/// session. implementation is super primitive
+/// `ChatServer` manages chat rooms and is responsible for coordinating chat session.
 pub struct ChatServer {
     sessions: HashMap<usize, Recipient<Message>>,
     rooms: HashMap<String, HashSet<usize>>,
@@ -100,9 +99,9 @@ impl Actor for ChatServer {
     type Context = Context<Self>;
 }
 
-/// Handler for Connect message.
+/// Handler for 'Connect' message
 ///
-/// Register new session and assign unique id to this session
+/// Register new session and assign unique id to this session.
 impl Handler<Connect> for ChatServer {
     type Result = usize;
 
@@ -124,7 +123,7 @@ impl Handler<Connect> for ChatServer {
     }
 }
 
-/// Handler for Disconnect message.
+/// Handler for 'Disconnect' message
 impl Handler<Disconnect> for ChatServer {
     type Result = ();
 
@@ -149,7 +148,7 @@ impl Handler<Disconnect> for ChatServer {
     }
 }
 
-/// Handler for Message message.
+/// Handler for 'Message' message
 impl Handler<ClientMessage> for ChatServer {
     type Result = ();
 
@@ -158,7 +157,7 @@ impl Handler<ClientMessage> for ChatServer {
     }
 }
 
-/// Handler for `ListRooms` message.
+/// Handler for `ListRooms` message
 impl Handler<ListRooms> for ChatServer {
     type Result = MessageResult<ListRooms>;
 
@@ -173,8 +172,9 @@ impl Handler<ListRooms> for ChatServer {
     }
 }
 
-/// Join room, send disconnect message to old room, 
-/// send join message to new room.
+/// Handler for 'Join' message
+///
+/// Join room, send disconnect message to old room, send join message to new room.
 impl Handler<Join> for ChatServer {
     type Result = ();
 

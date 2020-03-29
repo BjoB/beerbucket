@@ -1,5 +1,5 @@
 
-![logo](doc/beerbucket_logo.png)
+![logo](doc/img/beerbucket_logo.png)
 
 # Project usage
 Open repo directory as workspace in Visual Studio Code. Default build & launch settings are provided. 

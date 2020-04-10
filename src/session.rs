@@ -94,52 +94,19 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
                 let m = text.trim();
                 // we check for /sss type of messages
                 if m.starts_with('/') {
-                    let v: Vec<&str> = m.splitn(2, ' ').collect();
-                    match v[0] {
-                        "/list" => {
-                            println!("List availabe rooms:");
-                            self.addr
-                                .send(server::ListRooms)
-                                .into_actor(self)
-                                .then(|res, _, ctx| {
-                                    match res {
-                                        Ok(rooms) => {
-                                            for room in rooms {
-                                                ctx.text(room);
-                                            }
-                                        }
-                                        _ => println!("Something is wrong!"),
-                                    }
-                                    fut::ready(())
-                                })
-                                .wait(ctx)
-                            // .wait(ctx) pauses all events in context,
-                            // so actor wont receive any new messages until it get list
-                            // of rooms back
-                        }
+                    let cmd: Vec<&str> = m.splitn(2, ' ').collect();
+                    match cmd[0] {
+                        "/list" => self.list_available_rooms(ctx),
                         "/join" => {
-                            if v.len() == 2 {
-                                match self.name.as_ref() {
-                                    Some(nickname) => {
-                                        self.room = v[1].to_owned();
-                                        self.addr.do_send(server::Join {
-                                            id: self.id,
-                                            name: self.room.clone(),
-                                        });
-        
-                                        ctx.text(format!("{} joined!", nickname));
-                                    },
-                                    None => {
-                                        println!("Joining channel not allowed without name!");
-                                    },
-                                }
+                            if cmd.len() == 2 {
+                                self.join_room(cmd[1], ctx);
                             } else {
                                 ctx.text("Room name is required!");
                             }
                         }
                         "/name" => {
-                            if v.len() == 2 {
-                                self.name = Some(v[1].to_owned());
+                            if cmd.len() == 2 {
+                                self.name = Some(cmd[1].to_owned());
                             } else {
                                 ctx.text("!!! name is required");
                             }
@@ -173,10 +140,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
 }
 
 impl WsChatSession {
-    pub fn new(
-        addr: Addr<ChatServer>,
-        name: Option<String>,
-    ) -> WsChatSession {
+    pub fn new(addr: Addr<ChatServer>, name: Option<String>) -> WsChatSession {
         WsChatSession {
             addr,
             name,
@@ -184,7 +148,7 @@ impl WsChatSession {
             hb: Instant::now(),
             room: "Main".to_owned(),
         }
-    }    
+    }
     /// helper method that sends ping to client every second.
     ///
     /// also this method checks heartbeats from client
@@ -207,5 +171,43 @@ impl WsChatSession {
 
             ctx.ping(b"");
         });
+    }
+
+    fn list_available_rooms(&mut self, ctx: &mut ws::WebsocketContext<Self>) {
+        println!("List availabe rooms:");
+        self.addr
+            .send(server::ListRooms)
+            .into_actor(self)
+            .then(|res, _, ctx| {
+                match res {
+                    Ok(rooms) => {
+                        for room in rooms {
+                            ctx.text(room);
+                        }
+                    }
+                    _ => println!("Something is wrong!"),
+                }
+                fut::ready(())
+            })
+            .wait(ctx)
+        // .wait(ctx) pauses all events in context,
+        // so actor wont receive any new messages until it get list
+        // of rooms back
+    }
+
+    fn join_room(&mut self, room_name: &str, ctx: &mut ws::WebsocketContext<Self>) {
+        match self.name.as_ref() {
+            Some(nickname) => {
+                self.room = room_name.to_owned();
+                self.addr.do_send(server::Join {
+                    id: self.id,
+                    name: self.room.clone(),
+                });
+                ctx.text(format!("{} joined!", nickname));
+            }
+            None => {
+                println!("Joining channel not allowed without name!");
+            }
+        }
     }
 }

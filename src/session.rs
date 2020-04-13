@@ -3,11 +3,13 @@ use std::time::{Duration, Instant};
 use actix::*;
 use actix_web_actors::ws;
 
-use serde::{Deserialize, Serialize};
 use serde_json;
 use serde_json::json;
 
 use crate::server::{self, ChatServer};
+
+use crate::messages::{IncomingMessage, create_output_message};
+
 /// How often heartbeat pings are sent
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 
@@ -25,22 +27,6 @@ pub struct WsChatSession {
     name: Option<String>,
     /// chat server
     addr: Addr<ChatServer>,
-}
-
-#[derive(Serialize, Deserialize)]
-struct IncomingMessage {
-    /// request name for function
-    /// TODO: Enum Type like in Frontend
-    request: u8,
-    /// content, like parameters
-    content: Option<String>,
-}
-#[derive(Serialize, Deserialize)]
-struct OutputMessage {
-    request: u8,
-    message: Option<String>,
-    room_list: Option<Vec<String>>,
-    error: String,
 }
 
 impl Actor for WsChatSession {
@@ -148,7 +134,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
                             ctx.text("Room name is required!");
                         }
                     }
-                    _ => println!("Maybe Error Handling, but it should never run in this case"),
+                    _ => println!("Unknown command received: {:?}", message.request),
                 }
             }
             ws::Message::Binary(_) => println!("Unexpected binary"),
@@ -205,8 +191,7 @@ impl WsChatSession {
             .then(|res, _, ctx| {
                 match res {
                     Ok(rooms) => {
-                        let message: OutputMessage = create_output_message(1, None, Some(rooms));
-                        ctx.text(json!(message).to_string());
+                        ctx.text(json!(create_output_message(1, None, Some(rooms))).to_string());
                     }
                     _ => println!("Something is wrong!"),
                 }
@@ -233,15 +218,4 @@ impl WsChatSession {
             }
         }
     }
-}
-
-//TODO extract function and Types in own file
-fn create_output_message(request: u8, message: Option<String>, room_list: Option<Vec<String>>) -> OutputMessage {
-    let out_put: OutputMessage = OutputMessage {
-        request: request,
-        message: message,
-        room_list: room_list,
-        error: "none".to_string(),
-    };
-    return out_put;
 }

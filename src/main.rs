@@ -4,6 +4,7 @@ use actix_web_actors::ws;
 
 mod server;
 mod session;
+mod messages;
 
 use session::WsChatSession;
 

@@ -3,6 +3,9 @@ use std::time::{Duration, Instant};
 use actix::*;
 use actix_web_actors::ws;
 
+use serde::{Deserialize, Serialize};
+use serde_json;
+
 use crate::server::{self, ChatServer};
 /// How often heartbeat pings are sent
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
@@ -21,6 +24,15 @@ pub struct WsChatSession {
     name: Option<String>,
     /// chat server
     addr: Addr<ChatServer>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct IncomingMessage {
+    /// request name for function
+    /// TODO: Enum Type like in Frontend
+    request: u8,
+    /// content, like parameters
+    content: Option<String>,
 }
 
 impl Actor for WsChatSession {
@@ -91,40 +103,42 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
                 self.hb = Instant::now();
             }
             ws::Message::Text(text) => {
-                let m = text.trim();
-                // we check for /sss type of messages
-                if m.starts_with('/') {
-                    let cmd: Vec<&str> = m.splitn(2, ' ').collect();
-                    match cmd[0] {
-                        "/list" => self.list_available_rooms(ctx),
-                        "/join" => {
-                            if cmd.len() == 2 {
-                                self.join_room(cmd[1], ctx);
-                            } else {
-                                ctx.text("Room name is required!");
-                            }
-                        }
-                        "/name" => {
-                            if cmd.len() == 2 {
-                                self.name = Some(cmd[1].to_owned());
-                            } else {
-                                ctx.text("!!! name is required");
-                            }
-                        }
-                        _ => ctx.text(format!("!!! unknown command: {:?}", m)),
+                // TODO: check if conversion worked
+                let message: IncomingMessage = serde_json::from_str(&text).unwrap();
+                match message.request {
+                    //message
+                    0 => {
+                        let msg = if let Some(ref name) = self.name {
+                            format!("{}: {}", name, message.content.unwrap())
+                        } else {
+                            message.content.unwrap().to_owned()
+                        };
+                        // send message to chat server
+                        self.addr.do_send(server::ClientMessage {
+                            id: self.id,
+                            msg,
+                            room: self.room.clone(),
+                        })
                     }
-                } else {
-                    let msg = if let Some(ref name) = self.name {
-                        format!("{}: {}", name, m)
-                    } else {
-                        m.to_owned()
-                    };
-                    // send message to chat server
-                    self.addr.do_send(server::ClientMessage {
-                        id: self.id,
-                        msg,
-                        room: self.room.clone(),
-                    })
+                    //list
+                    1 => self.list_available_rooms(ctx),
+                    //name
+                    2 => {
+                        if message.content.is_some() {
+                            self.name = message.content;
+                        } else {
+                            ctx.text("!!! name is required");
+                        }
+                    }
+                    //join
+                    3 => {
+                        if message.content.is_some() {
+                            self.join_room(&message.content.unwrap(), ctx);
+                        } else {
+                            ctx.text("Room name is required!");
+                        }
+                    }
+                    _ => println!("Maybe Error Handling, but it should never run in this case"),
                 }
             }
             ws::Message::Binary(_) => println!("Unexpected binary"),

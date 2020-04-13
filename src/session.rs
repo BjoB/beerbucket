@@ -5,6 +5,7 @@ use actix_web_actors::ws;
 
 use serde::{Deserialize, Serialize};
 use serde_json;
+use serde_json::json;
 
 use crate::server::{self, ChatServer};
 /// How often heartbeat pings are sent
@@ -33,6 +34,13 @@ struct IncomingMessage {
     request: u8,
     /// content, like parameters
     content: Option<String>,
+}
+#[derive(Serialize, Deserialize)]
+struct OutputMessage {
+    request: u8,
+    message: Option<String>,
+    room_list: Option<Vec<String>>,
+    error: String,
 }
 
 impl Actor for WsChatSession {
@@ -109,8 +117,9 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
                     //message
                     0 => {
                         let msg = if let Some(ref name) = self.name {
-                            format!("{}: {}", name, message.content.unwrap())
+                            json!(create_output_message(0, Some(name.to_string()), None)).to_string()
                         } else {
+                            //TODO remove send without name
                             message.content.unwrap().to_owned()
                         };
                         // send message to chat server
@@ -126,6 +135,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
                     2 => {
                         if message.content.is_some() {
                             self.name = message.content;
+                            ctx.text(json!(create_output_message(2, self.name.clone(), None)).to_string());
                         } else {
                             ctx.text("!!! name is required");
                         }
@@ -195,9 +205,8 @@ impl WsChatSession {
             .then(|res, _, ctx| {
                 match res {
                     Ok(rooms) => {
-                        for room in rooms {
-                            ctx.text(room);
-                        }
+                        let message: OutputMessage = create_output_message(1, None, Some(rooms));
+                        ctx.text(json!(message).to_string());
                     }
                     _ => println!("Something is wrong!"),
                 }
@@ -217,11 +226,22 @@ impl WsChatSession {
                     id: self.id,
                     name: self.room.clone(),
                 });
-                ctx.text(format!("{} joined!", nickname));
+                ctx.text(json!(create_output_message(2, Some(nickname.to_string()), None)).to_string());
             }
             None => {
                 println!("Joining channel not allowed without name!");
             }
         }
     }
+}
+
+//TODO extract function and Types in own file
+fn create_output_message(request: u8, message: Option<String>, room_list: Option<Vec<String>>) -> OutputMessage {
+    let out_put: OutputMessage = OutputMessage {
+        request: request,
+        message: message,
+        room_list: room_list,
+        error: "none".to_string(),
+    };
+    return out_put;
 }

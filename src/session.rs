@@ -3,7 +3,13 @@ use std::time::{Duration, Instant};
 use actix::*;
 use actix_web_actors::ws;
 
+use serde_json;
+use serde_json::json;
+
 use crate::server::{self, ChatServer};
+
+use crate::messages::{IncomingMessage, create_output_message};
+
 /// How often heartbeat pings are sent
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 
@@ -91,40 +97,44 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
                 self.hb = Instant::now();
             }
             ws::Message::Text(text) => {
-                let m = text.trim();
-                // we check for /sss type of messages
-                if m.starts_with('/') {
-                    let cmd: Vec<&str> = m.splitn(2, ' ').collect();
-                    match cmd[0] {
-                        "/list" => self.list_available_rooms(ctx),
-                        "/join" => {
-                            if cmd.len() == 2 {
-                                self.join_room(cmd[1], ctx);
-                            } else {
-                                ctx.text("Room name is required!");
-                            }
-                        }
-                        "/name" => {
-                            if cmd.len() == 2 {
-                                self.name = Some(cmd[1].to_owned());
-                            } else {
-                                ctx.text("!!! name is required");
-                            }
-                        }
-                        _ => ctx.text(format!("!!! unknown command: {:?}", m)),
+                // TODO: check if conversion worked
+                let message: IncomingMessage = serde_json::from_str(&text).unwrap();
+                match message.request {
+                    //message
+                    0 => {
+                        let msg = if let Some(ref name) = self.name {
+                            json!(create_output_message(0, Some(name.to_string()), None)).to_string()
+                        } else {
+                            //TODO remove send without name
+                            message.content.unwrap().to_owned()
+                        };
+                        // send message to chat server
+                        self.addr.do_send(server::ClientMessage {
+                            id: self.id,
+                            msg,
+                            room: self.room.clone(),
+                        })
                     }
-                } else {
-                    let msg = if let Some(ref name) = self.name {
-                        format!("{}: {}", name, m)
-                    } else {
-                        m.to_owned()
-                    };
-                    // send message to chat server
-                    self.addr.do_send(server::ClientMessage {
-                        id: self.id,
-                        msg,
-                        room: self.room.clone(),
-                    })
+                    //list
+                    1 => self.list_available_rooms(ctx),
+                    //name
+                    2 => {
+                        if message.content.is_some() {
+                            self.name = message.content;
+                            ctx.text(json!(create_output_message(2, self.name.clone(), None)).to_string());
+                        } else {
+                            ctx.text("!!! name is required");
+                        }
+                    }
+                    //join
+                    3 => {
+                        if message.content.is_some() {
+                            self.join_room(&message.content.unwrap(), ctx);
+                        } else {
+                            ctx.text("Room name is required!");
+                        }
+                    }
+                    _ => println!("Unknown command received: {:?}", message.request),
                 }
             }
             ws::Message::Binary(_) => println!("Unexpected binary"),
@@ -181,9 +191,7 @@ impl WsChatSession {
             .then(|res, _, ctx| {
                 match res {
                     Ok(rooms) => {
-                        for room in rooms {
-                            ctx.text(room);
-                        }
+                        ctx.text(json!(create_output_message(1, None, Some(rooms))).to_string());
                     }
                     _ => println!("Something is wrong!"),
                 }
@@ -203,7 +211,7 @@ impl WsChatSession {
                     id: self.id,
                     name: self.room.clone(),
                 });
-                ctx.text(format!("{} joined!", nickname));
+                ctx.text(json!(create_output_message(2, Some(nickname.to_string()), None)).to_string());
             }
             None => {
                 println!("Joining channel not allowed without name!");

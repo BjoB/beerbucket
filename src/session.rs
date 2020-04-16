@@ -3,12 +3,10 @@ use std::time::{Duration, Instant};
 use actix::*;
 use actix_web_actors::ws;
 
-use serde_json;
-use serde_json::json;
-
 use crate::server::{self, ChatServer};
 
-use crate::messages::{IncomingMessage, create_output_message};
+use crate::messages::ResponsePayload::*;
+use crate::messages::*;
 
 /// How often heartbeat pings are sent
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
@@ -87,7 +85,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
             Ok(msg) => msg,
         };
 
-        println!("WEBSOCKET MESSAGE: {:?}", msg);
+        println!("RECEIVED WEBSOCKET MESSAGE: {:?}", msg);
         match msg {
             ws::Message::Ping(msg) => {
                 self.hb = Instant::now();
@@ -96,45 +94,17 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
             ws::Message::Pong(_) => {
                 self.hb = Instant::now();
             }
-            ws::Message::Text(text) => {
-                // TODO: check if conversion worked
-                let message: IncomingMessage = serde_json::from_str(&text).unwrap();
-                match message.request {
-                    //message
-                    0 => {
-                        let msg = if let Some(ref name) = self.name {
-                            json!(create_output_message(0, Some(name.to_string()), None)).to_string()
-                        } else {
-                            //TODO remove send without name
-                            message.content.unwrap().to_owned()
-                        };
-                        // send message to chat server
-                        self.addr.do_send(server::ClientMessage {
-                            id: self.id,
-                            msg,
-                            room: self.room.clone(),
-                        })
-                    }
-                    //list
-                    1 => self.list_available_rooms(ctx),
-                    //name
-                    2 => {
-                        if message.content.is_some() {
-                            self.name = message.content;
-                            ctx.text(json!(create_output_message(2, self.name.clone(), None)).to_string());
-                        } else {
-                            ctx.text("!!! name is required");
-                        }
-                    }
-                    //join
-                    3 => {
-                        if message.content.is_some() {
-                            self.join_room(&message.content.unwrap(), ctx);
-                        } else {
-                            ctx.text("Room name is required!");
-                        }
-                    }
-                    _ => println!("Unknown command received: {:?}", message.request),
+            ws::Message::Text(cmd_text) => {
+                let cmd_request = CommandRequest::from_str(&cmd_text);
+
+                match cmd_request {
+                    Ok(request) => match request.payload {
+                        Command::ChatMsg { name, msg } => self.send_chat_message(name, msg),
+                        Command::ListRooms => self.list_available_rooms(ctx),
+                        Command::SetName(nickname) => self.name = Some(nickname),
+                        Command::JoinRoom(roomname) => self.join_room(roomname, ctx),
+                    },
+                    Err(e) => println!("Unknown command received. {:?}", e),
                 }
             }
             ws::Message::Binary(_) => println!("Unexpected binary"),
@@ -183,6 +153,35 @@ impl WsChatSession {
         });
     }
 
+    fn send_chat_message(
+        &mut self,
+        name: String,
+        msg: String,
+        // ctx: &mut ws::WebsocketContext<Self>,
+    ) {
+        // TODO: rethink name setting here
+        self.name = Some(name);
+
+        // let server handle the message
+        self.addr.do_send(server::ClientMessage {
+            id: self.id,
+            msg,
+            room: self.room.clone(),
+        });
+
+        // TODO: needed? if yes: Add this to error handling as in list_available_rooms()
+        // ctx.text(
+        //     CommandResponse::new(
+        //         ChatMsg {
+        //             name: name,
+        //             msg: msg,
+        //         },
+        //         None,
+        //     )
+        //     .stringify(),
+        // );
+    }
+
     fn list_available_rooms(&mut self, ctx: &mut ws::WebsocketContext<Self>) {
         println!("List availabe rooms:");
         self.addr
@@ -191,7 +190,7 @@ impl WsChatSession {
             .then(|res, _, ctx| {
                 match res {
                     Ok(rooms) => {
-                        ctx.text(json!(create_output_message(1, None, Some(rooms))).to_string());
+                        ctx.text(CommandResponse::new(AvailableRooms(rooms), None).stringify());
                     }
                     _ => println!("Something is wrong!"),
                 }
@@ -203,15 +202,18 @@ impl WsChatSession {
         // of rooms back
     }
 
-    fn join_room(&mut self, room_name: &str, ctx: &mut ws::WebsocketContext<Self>) {
+    fn join_room(&mut self, room_name: String, ctx: &mut ws::WebsocketContext<Self>) {
         match self.name.as_ref() {
             Some(nickname) => {
-                self.room = room_name.to_owned();
+                self.room = room_name;
                 self.addr.do_send(server::Join {
                     id: self.id,
                     name: self.room.clone(),
                 });
-                ctx.text(json!(create_output_message(2, Some(nickname.to_string()), None)).to_string());
+
+                // TODO: Add error handling as in list_available_rooms()
+                // TODO: why nickname as response?
+                ctx.text(CommandResponse::new(JoinRoom(nickname.clone()), None).stringify());
             }
             None => {
                 println!("Joining channel not allowed without name!");

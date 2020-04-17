@@ -102,7 +102,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
                         Command::ChatMsg { name, msg } => self.send_chat_message(name, msg),
                         Command::ListRooms => self.list_available_rooms(ctx),
                         Command::SetName(nickname) => self.name = Some(nickname),
-                        Command::JoinRoom(roomname) => self.join_room(roomname, ctx),
+                        Command::JoinRoom(roomname) => self.join_room(roomname),
                     },
                     Err(e) => println!("Unknown command received. {:?}", e),
                 }
@@ -157,7 +157,6 @@ impl WsChatSession {
         &mut self,
         name: String,
         msg: String,
-        // ctx: &mut ws::WebsocketContext<Self>,
     ) {
         // TODO: rethink name setting here
         self.name = Some(name);
@@ -168,18 +167,6 @@ impl WsChatSession {
             msg,
             room: self.room.clone(),
         });
-
-        // TODO: needed? if yes: Add this to error handling as in list_available_rooms()
-        // ctx.text(
-        //     CommandResponse::new(
-        //         ChatMsg {
-        //             name: name,
-        //             msg: msg,
-        //         },
-        //         None,
-        //     )
-        //     .stringify(),
-        // );
     }
 
     fn list_available_rooms(&mut self, ctx: &mut ws::WebsocketContext<Self>) {
@@ -202,18 +189,15 @@ impl WsChatSession {
         // of rooms back
     }
 
-    fn join_room(&mut self, room_name: String, ctx: &mut ws::WebsocketContext<Self>) {
+    fn join_room(&mut self, room_name: String) {
         match self.name.as_ref() {
             Some(nickname) => {
+                println!("{} joins channel {}!", nickname, room_name);
                 self.room = room_name;
                 self.addr.do_send(server::Join {
                     id: self.id,
                     name: self.room.clone(),
                 });
-
-                // TODO: Add error handling as in list_available_rooms()
-                // TODO: why nickname as response?
-                ctx.text(CommandResponse::new(JoinRoom(nickname.clone()), None).stringify());
             }
             None => {
                 println!("Joining channel not allowed without name!");

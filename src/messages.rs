@@ -24,8 +24,6 @@ impl CommandRequest {
 #[derive(Serialize, Deserialize)]
 pub enum ResponsePayload {
     AvailableRooms(Vec<String>),
-    JoinRoom(String),
-    ChatMsg { name: String, msg: String },
 }
 
 #[derive(Serialize, Deserialize)]
@@ -36,6 +34,7 @@ pub struct CommandResponse {
 
 impl CommandResponse {
     /// Create new 'Response' object from payload and sets error.
+    ///
     /// Pass None if no error should be returned.
     pub fn new(payload: ResponsePayload, error: Option<String>) -> Self {
         CommandResponse {
@@ -70,16 +69,16 @@ mod tests {
     #[test]
     fn test_basic_response() {
         let example_response = CommandResponse::new(
-            ResponsePayload::ChatMsg {
-                name: String::from("cooldude"),
-                msg: String::from("Hi"),
-            },
+            ResponsePayload::AvailableRooms(vec![
+                String::from("coolroom"),
+                String::from("fancyroom"),
+            ]),
             None,
         );
 
         let stringified_response = example_response.stringify();
 
         println!("{}", stringified_response);
-        assert_eq!(stringified_response.len(), 67);
+        assert_eq!(stringified_response.len(), 68);
     }
 }

@@ -1,0 +1,16 @@
+version: '2'
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    networks:
+      - network
+    ports:
+       - "8080:8080"
+    environment:
+      RUST_BACKTRACE: 1
+      RUST_LOG: beerbucket-server=debug
+
+networks:
+  network:

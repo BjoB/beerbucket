@@ -1,0 +1,11 @@
+runtime: custom
+env: flex
+
+# Use only a single instance, so that the local-memory-only chat app will work
+# consistently with multiple users. To work across multiple instances, a complete
+# stateless architecture will be needed.
+manual_scaling:
+    instances: 1
+  
+  network:
+    session_affinity: true

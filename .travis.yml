@@ -1,0 +1,19 @@
+language: rust
+
+cache: cargo
+
+sudo: required
+
+# services:
+#   - docker
+
+install:
+  - echo "Nothing additional to install at the moment!"
+
+script:
+  - cargo build --verbose --all
+  - cargo test --verbose --all
+
+# after_success:
+#   - docker --version
+#   - docker-compose build
